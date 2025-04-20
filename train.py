@@ -6,14 +6,30 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import jaccard_score
 from dataloader import get_dataloaders
-import matplotlib.pyplot as plt  # Sonra pyplot import edilir
-import segmentation_models_pytorch as smp  # SMP U-Net eklendi
+import matplotlib.pyplot as plt  
+import segmentation_models_pytorch as smp  # SMP U-Net is added 
+import numpy as np
 
-# Paths
-TRAIN_ROOT = "/home/halil/Desktop/videoTask/train_set/"
-TEST_ROOT = "/home/halil/Desktop/videoTask/test_set/"
-CHECKPOINT_DIR = "/home/halil/Desktop/videoTask/checkpoints/"
+
+# current directory
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# sub directories
+TRAIN_ROOT = os.path.join(BASE_DIR, "train_set")
+TEST_ROOT = os.path.join(BASE_DIR, "test_set")
+CHECKPOINT_DIR = os.path.join(BASE_DIR, "checkpoints")
+VIS_DIR = os.path.join(BASE_DIR, "visualizations")
+
+# directories
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+os.makedirs(VIS_DIR, exist_ok=True)
+
+print("BASE_DIR:", BASE_DIR)
+print("TRAIN_ROOT:", TRAIN_ROOT)
+print("TEST_ROOT:", TEST_ROOT)
+print("CHECKPOINT_DIR:", CHECKPOINT_DIR)
+print("VIS_DIR:", VIS_DIR)
+
 
 # Dataloaders
 train_loader, val_loader, test_loader = get_dataloaders(TRAIN_ROOT, TEST_ROOT)
@@ -24,35 +40,6 @@ VISUALIZE_RESULTS = True
 # Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #device = torch.device("cpu")
-
-
-# -------------------------------
-# Custom U-Net (Commented Out)
-# -------------------------------
-# class ConvBlock(nn.Module):
-#     def __init__(self, in_channels, out_channels):
-#         super(ConvBlock, self).__init__()
-#         self.double_conv = nn.Sequential(
-#             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-#             nn.BatchNorm2d(out_channels),
-#             nn.ReLU(inplace=True),
-#             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-#             nn.BatchNorm2d(out_channels),
-#             nn.ReLU(inplace=True)
-#         )
-
-#     def forward(self, x):
-#         return self.double_conv(x)
-
-# class UNet(nn.Module):
-#     def __init__(self, in_channels=3, out_channels=10):
-#         super(UNet, self).__init__()
-#         # encoder and decoder blocks...
-#         self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1)
-
-#     def forward(self, x):
-#         # forward pass...
-#         return self.final_conv(d1)
 
 # -------------------------------
 # SMP U-Net (Pretrained Backbone)
@@ -65,7 +52,7 @@ model = smp.Unet(
 ).to(device)
 
 # Optimizer & Loss
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 criterion = nn.CrossEntropyLoss()
 
 def train_one_epoch(model, loader):
@@ -104,12 +91,12 @@ def validate(model, loader):
 
     return val_loss / len(loader)
 
-# Training loop
+
 # Training loop with early stopping
 best_val_loss = float('inf')
 epochs_no_improve = 0
 early_stop_patience = 10
-num_epochs = 100  # istediğin kadar büyük bırakabilirsin
+num_epochs = 100  
 
 for epoch in range(1, num_epochs + 1):
     train_loss = train_one_epoch(model, train_loader)
@@ -133,17 +120,7 @@ for epoch in range(1, num_epochs + 1):
 # Load and evaluate best model
 model.load_state_dict(torch.load(os.path.join(CHECKPOINT_DIR, "best_model.pth")))
 
-
-
-
-import os
-import numpy as np
-
-# Visualization klasörü oluştur
-VIS_DIR = "visualizations"
-os.makedirs(VIS_DIR, exist_ok=True)
-
-# Model sonrası tahmin ve görselleştirme
+# prediction and visualization
 model.eval()
 iou_scores = []
 
@@ -172,7 +149,7 @@ with torch.no_grad():
             cmap = plt.colormaps.get_cmap("tab20").resampled(num_classes)
             color_map = {cls: cmap(i)[:3] for i, cls in enumerate(unique_classes)}
             background_class = min(unique_classes)
-            color_map[background_class] = (1.0, 1.0, 1.0)  # Arka planı beyaz
+            color_map[background_class] = (1.0, 1.0, 1.0)  # white background
 
             def colorize_mask(mask_tensor):
                 mask_np = mask_tensor.cpu().numpy()
@@ -208,11 +185,5 @@ with torch.no_grad():
                 plt.close()
                 
                 
-                
-                
-
-                
-                
-
 mean_iou = sum(iou_scores) / len(iou_scores)
 print(f"Test Mean IoU: {mean_iou:.4f}")
